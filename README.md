@@ -259,3 +259,19 @@ fig.add_shape(type="line", x0=TRAINING_CUTOFF_DATE, y0=0, x1=TRAINING_CUTOFF_DAT
 fig.add_annotation(x=TRAINING_CUTOFF_DATE, y=0.95, yref="paper", text="Начало кампании", showarrow=False, xanchor="left")
 fig.update_layout(title='Сравнение фактических данных с прогнозом Prophet', xaxis_title='Дата', yaxis_title='Количество первых депозитов', legend_title_text='Данные', hovermode="x unified")
 fig.show()
+
+
+https://habr.com/ru/companies/ods/articles/323730/
+
+https://habr.com/ru/companies/tbank/articles/677186/
+
+https://habr.com/ru/companies/beeline_tech/articles/858904/
+
+https://habr.com/ru/companies/beeline_tech/articles/865156/
+
+https://habr.com/ru/companies/jetinfosystems/articles/833790/
+
+https://habr.com/ru/companies/otus/articles/555700/
+
+https://habr.com/ru/articles/749604/
+
