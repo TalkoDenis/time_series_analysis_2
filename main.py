@@ -3,33 +3,27 @@ import pandas as pd
 from prophet import Prophet
 import plotly.graph_objects as go
 
-# from datetime import datetime, timedelta
-
-# from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
 
 def read_data(path):
     return pd.read_csv(path)
 
 def validate_data(df):
     df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
-    df.iloc[:, 1] = df.iloc[:, 1].astype(int)
+    df.iloc[:, 1] = pd.to_numeric(df.iloc[:, 1], downcast='integer')
     return df
 
-def delete_df(df):
-    del df
 
-def split_df(df):
-    df_prophet = df.rename(columns={df[0]: 'ds', df[1]: 'y'})
-    delete_df(df)
+def rename_columns(df):
+    df_prophet = df.rename(columns={df.columns[0]: 'ds', df.columns[1]: 'y'})
     return df_prophet
 
-def split_df_prophet(df_prophet, data='2025-01-01'):
-    train_df = df_prophet[df_prophet['ds'] <= data]
-    future_df = df_prophet[df_prophet['ds'] > data]
+def split_df(df_prophet, data='2025-01-01'):
+    train_df = df_prophet[df_prophet['ds'] <= pd.to_datetime(data)]
+    future_df = df_prophet[df_prophet['ds'] > pd.to_datetime(data)]
     return train_df, future_df
 
 
-def model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US')
+def model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US'):
     model = Prophet(
         seasonality_prior_scale=seasonality_prior_scale
     )
@@ -98,3 +92,17 @@ def save_result_df(future_df, forecast):
     }, inplace=True)
     return results_df_org
 
+
+
+
+df = read_data('./data/data.csv')
+
+df = validate_data(df)
+
+df_prophet = rename_columns(df)
+del df
+train_df, future_df = split_df(df_prophet)
+
+forecast = model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US')
+
+visualize_data(df_prophet, forecast)
