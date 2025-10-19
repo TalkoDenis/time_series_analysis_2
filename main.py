@@ -1,126 +1,100 @@
 import pandas as pd
-# import matplotlib.pyplot as plt
-
-import clickhouse_connect
-import os
 
 from prophet import Prophet
 import plotly.graph_objects as go
-import plotly.express as px
 
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
 
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
+# from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
 
-import io
+def read_data(path):
+    return pd.read_csv(path)
 
+def validate_data(df):
+    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
+    df.iloc[:, 1] = df.iloc[:, 1].astype(int)
+    return df
 
+def delete_df(df):
+    del df
 
+def split_df(df):
+    df_prophet = df.rename(columns={df[0]: 'ds', df[1]: 'y'})
+    delete_df(df)
+    return df_prophet
 
-df = df_org_metric.copy()
-
-# --- 1. Подготовка данных ---
-# Гарантируем, что колонка 'week' имеет формат даты
-df['week'] = pd.to_datetime(df['week'])
-
-# Prophet требует, чтобы столбцы назывались 'ds' (дата) и 'y' (значение)
-df_prophet = df.rename(columns={'week': 'ds', 'fd_cnt': 'y'})
-
-
-# --- 2. Разделение данных ---
-# Данные для обучения модели (до 2025-05-01 включительно)
-train_df = df_prophet[df_prophet['ds'] <= '2025-05-01']
-
-# Данные, для которых нужно построить прогноз (после 2025-05-01)
-future_df = df_prophet[df_prophet['ds'] > '2025-05-01']
+def split_df_prophet(df_prophet, data='2025-01-01'):
+    train_df = df_prophet[df_prophet['ds'] <= data]
+    future_df = df_prophet[df_prophet['ds'] > data]
+    return train_df, future_df
 
 
-# --- 3. Обучение модели ---
-# Инициализируем и обучаем модель
-model = Prophet(
-    seasonality_prior_scale=25.0 
-)
+def model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US')
+    model = Prophet(
+        seasonality_prior_scale=seasonality_prior_scale
+    )
+    model.add_country_holidays(country_name=country_name)
+    model.fit(train_df)
 
-model.add_country_holidays(country_name='AR') # Аргентина
-model.add_country_holidays(country_name='VE') # Венесуэла
-model.add_country_holidays(country_name='CL') # Чили
-model.add_country_holidays(country_name='MX') # Мексика
-model.add_country_holidays(country_name='PE') # Перу
+    prediction_dates = future_df[['ds']]
+    forecast = model.predict(prediction_dates)
+    return forecast
 
-model.fit(train_df)
+def visualize_data(df_prophet, forecast):
+    fig = go.Figure()
 
+    fig.add_trace(go.Scatter(
+        x=df_prophet['ds'],
+        y=df_prophet['y'],
+        mode='lines',
+        line=dict(color='red', width=2),
+        name='Now'
+    ))
 
-# --- 4. Создание прогноза ---
-# Для предсказания Prophet'у нужен датафрейм только с колонкой 'ds'
-prediction_dates = future_df[['ds']]
-forecast = model.predict(prediction_dates)
+    fig.add_trace(go.Scatter(
+        x=forecast['ds'],
+        y=forecast['yhat'],
+        mode='lines',
+        line=dict(color='blue', width=2),
+        name='Forecast'
+    ))
 
+    fig.add_trace(go.Scatter(
+        x=forecast['ds'],
+        y=forecast['yhat_upper'],
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',
+        fillcolor='rgba(0,100,80,0.2)',
+        name='Forecast interval'
+    ))
+    fig.add_trace(go.Scatter(
+        x=forecast['ds'],
+        y=forecast['yhat_lower'],
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',
+        fillcolor='rgba(0,100,80,0.2)',
+        showlegend=False
+    ))
 
-# --- 5. Интерактивная визуализация (Plotly) ---
-# print("\nСоздание интерактивного графика...")
-fig = go.Figure()
+    fig.update_layout(
+        title='Our data',
+        xaxis_title='Week',
+        yaxis_title='N',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
 
-# --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
-# Добавляем фактические данные за ВЕСЬ ПЕРИОД в виде линии
-fig.add_trace(go.Scatter(
-    x=df_prophet['ds'],  # Используем полный датафрейм df_prophet
-    y=df_prophet['y'],
-    mode='lines',
-    line=dict(color='red', width=2),
-    name='Факт'
-))
+    fig.show()
 
-# Добавляем линию прогноза
-fig.add_trace(go.Scatter(
-    x=forecast['ds'],
-    y=forecast['yhat'],
-    mode='lines',
-    line=dict(color='blue', width=2),
-    name='Прогноз'
-))
+def save_result_df(future_df, forecast):
+    results_df_org = pd.merge(future_df, forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], on='ds')
+    results_df_org.rename(columns={
+        'ds': 'week',
+        'y': 'fd_cnt',
+        'yhat': 'forecast',
+        'yhat_lower': 'min_forecast',
+        'yhat_upper': 'max_forecast'
+    }, inplace=True)
+    return results_df_org
 
-# Добавляем закрашенную область прогнозного интервала
-fig.add_trace(go.Scatter(
-    x=forecast['ds'],
-    y=forecast['yhat_upper'],
-    mode='lines',
-    line=dict(width=0),
-    fill='tonexty',
-    fillcolor='rgba(0,100,80,0.2)',
-    name='Прогнозный интервал'
-))
-fig.add_trace(go.Scatter(
-    x=forecast['ds'],
-    y=forecast['yhat_lower'],
-    mode='lines',
-    line=dict(width=0),
-    fill='tonexty',
-    fillcolor='rgba(0,100,80,0.2)',
-    showlegend=False # Скрываем легенду для нижней границы
-))
-
-# Добавляем вертикальную линию, разделяющую историю и прогноз
-fig.add_vline(x=pd.to_datetime('2025-05-01'), line_width=2, line_dash="dash", line_color="grey")
-
-# Настраиваем внешний вид графика
-fig.update_layout(
-    title='Прогноз показателя FD vs Факт (Органика)',
-    xaxis_title='Неделя',
-    yaxis_title='Показатель FD',
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-)
-
-fig.show()
-
-
-# --- 6. Сохранение результата в итоговый датафрейм ---
-# Эта часть остается без изменений
-results_df_org = pd.merge(future_df, forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], on='ds')
-
-results_df_org.rename(columns={
-    'ds': 'week',
-    'y': 'fd_cnt',
-    'yhat': 'прогноз',
-    'yhat_lower': 'минимальный_прогнозный_интервал',
-    'yhat_upper': 'максимальный_прогнозный_интервал'
-}, inplace=True)
