@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 def read_data(path):
     try:
         df = pd.read_csv(path)
-
     except FileNotFoundError:
         print(f"Error: The file '{path}' was not found.")
 
@@ -19,9 +18,28 @@ def read_data(path):
         return df
 
 def validate_data(df):
-    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
-    df.iloc[:, 1] = pd.to_numeric(df.iloc[:, 1], downcast='integer')
-    return df.sort_values(by=df.columns[0])
+    try:
+        df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
+    except Exception as e:
+        print(f"Failed to convert to datetime: {e}")
+
+
+def validate_data(df):
+    from pandas.errors import OutOfBoundsDatetime
+    try:
+        df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
+        df.iloc[:, 1] = pd.to_numeric(df.iloc[:, 1], downcast='integer')
+    except ValueError as e:
+        print("Some values couldn’t be parsed as dates.")
+        print(e)
+    except OutOfBoundsDatetime as e:
+        print("Date values out of range (too large/small). Setting invalid to NaT.")
+        print(e)
+    except TypeError as e:
+        print("Invalid type for date column (maybe dicts or lists?).")
+        print(e)
+    else:
+        return df.sort_values(by=df.columns[0])
 
 
 def rename_columns(df):
@@ -29,15 +47,15 @@ def rename_columns(df):
     return df_prophet
 
 def get_min_data(df):
-    return df['ds'].loc[0]
+    return df['ds'].min()
 
-def get max_data(df):
-    return df['ds'].loc[-1]
+def get_max_data(df):
+    return df['ds'].max()
 
 def split_df(df_prophet, data='2025-01-01'):
-    if data < get_min_data(df_prophet):
+    if pd.to_datetime(data) < get_min_data(df_prophet):
         raise Exception(f'{data} is not valid! It is too small!')
-    if data > get_max_data(df_prophet):
+    if pd.to_datetime(data) > get_max_data(df_prophet):
         raise Exception(f'{data} is not valid! It is too big!')
     train_df = df_prophet[df_prophet['ds'] <= pd.to_datetime(data)]
     future_df = df_prophet[df_prophet['ds'] > pd.to_datetime(data)]
@@ -119,13 +137,9 @@ def save_result_df(future_df, forecast):
 
 
 df = read_data('./data/data.csv')
-
 df = validate_data(df)
-
 df_prophet = rename_columns(df)
 del df
 train_df, future_df = split_df(df_prophet)
-
 forecast = model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US')
-
 visualize_data(df_prophet, forecast)
