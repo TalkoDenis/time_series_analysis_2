@@ -5,7 +5,18 @@ import plotly.graph_objects as go
 
 
 def read_data(path):
-    return pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+
+    except FileNotFoundError:
+        print(f"Error: The file '{path}' was not found.")
+
+    except pd.errors.EmptyDataError:
+        print(f"Error: The file '{path}' is empty or malformed.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    else:
+        return df
 
 def validate_data(df):
     df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
@@ -17,13 +28,25 @@ def rename_columns(df):
     df_prophet = df.rename(columns={df.columns[0]: 'ds', df.columns[1]: 'y'})
     return df_prophet
 
+def get_min_data(df):
+    return df['ds'].loc[0]
+
+def get max_data(df):
+    return df['ds'].loc[-1]
+
 def split_df(df_prophet, data='2025-01-01'):
+    if data < get_min_data(df_prophet):
+        raise Exception(f'{data} is not valid! It is too small!')
+    if data > get_max_data(df_prophet):
+        raise Exception(f'{data} is not valid! It is too big!')
     train_df = df_prophet[df_prophet['ds'] <= pd.to_datetime(data)]
     future_df = df_prophet[df_prophet['ds'] > pd.to_datetime(data)]
     return train_df, future_df
 
 
 def model_learning(train_df, future_df, seasonality_prior_scale=25.0, country_name='US'):
+    if len(country_name) < 2:
+        raise Exception(f'{country_name} is too short!')
     model = Prophet(
         seasonality_prior_scale=seasonality_prior_scale
     )
