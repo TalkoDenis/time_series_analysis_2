@@ -10,7 +10,7 @@ def read_data(path):
 def validate_data(df):
     df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
     df.iloc[:, 1] = pd.to_numeric(df.iloc[:, 1], downcast='integer')
-    return df
+    return df.sort_values(by=df.columns[0])
 
 
 def rename_columns(df):
