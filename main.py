@@ -17,26 +17,27 @@ def read_data(path):
     else:
         return df
 
-def validate_data(df):
+def validate_datatime(df):
     try:
         df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
+    except ValueError as e:
+        print("Some values couldn’t be parsed as dates.")
+        print(e)
     except Exception as e:
         print(f"Failed to convert to datetime: {e}")
+    else:
+        return df.sort_values(by=df.columns[0])
 
 
 def validate_data(df):
     from pandas.errors import OutOfBoundsDatetime
     try:
-        df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
         df.iloc[:, 1] = pd.to_numeric(df.iloc[:, 1], downcast='integer')
-    except ValueError as e:
-        print("Some values couldn’t be parsed as dates.")
-        print(e)
     except OutOfBoundsDatetime as e:
-        print("Date values out of range (too large/small). Setting invalid to NaT.")
+        print("DValues are out of range (too large/small). Setting invalid to NaT.")
         print(e)
     except TypeError as e:
-        print("Invalid type for date column (maybe dicts or lists?).")
+        print("Invalid type for column.")
         print(e)
     else:
         return df.sort_values(by=df.columns[0])
